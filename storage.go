@@ -100,7 +100,7 @@ func (s *postgresStorage) GetTodosByTag(tag string) ([]*Todo, error) {
 
 func (s *postgresStorage) DeleteTodo(id int) error {
 	sql := "DELETE FROM todos WHERE id=$1"
-	_, err := s.db.Query(sql)
+	_, err := s.db.Query(sql, id)
 	if err != nil {
 		return err
 	}
@@ -116,6 +116,7 @@ func (s *postgresStorage) CreateTodo(item *Todo) (*Todo, error) {
 	}
 	val := *item
 	val.Id = id
+	fmt.Printf("Created todo id=%d: %+v", id, val)
 	return &val, nil
 }
 
@@ -128,5 +129,23 @@ func (s *postgresStorage) UpdateTodo(item *Todo) (*Todo, error) {
 	}
 	val := *item
 	val.Modified = modified
+	fmt.Println("Modified todo:", val)
 	return &val, nil
+}
+
+// TODO what endpoint and request?
+func (s *postgresStorage) TagTodo(id int, tag string, add bool) error {
+	var sql string
+	if add {
+		// TODO new tag
+		sql = "INSERT INTO tagged (item_id, tag_id) VALUES ($1, (SELECT id FROM tags WHERE label=$2))"
+	} else {
+		sql = "DELETE FROM tagged WHERE item_id=$1 AND tag_id=(SELECT id FROM tags WHERE label=$2)"
+	}
+	_, err := s.db.Query(sql, id, tag)
+	if err != nil {
+		fmt.Println("error updating tags")
+	}
+	fmt.Println(sql)
+	return nil
 }

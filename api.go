@@ -104,6 +104,7 @@ func (s *APIServer) handleUpdateTodo(w http.ResponseWriter, r *http.Request) {
 	}
 	label := r.FormValue("label")
 	completed := r.FormValue("completed") == "true" // bool
+	tags := r.FormValue("tags")
 
 	// TODO handling partial updates
 	var item = Todo{
@@ -111,6 +112,7 @@ func (s *APIServer) handleUpdateTodo(w http.ResponseWriter, r *http.Request) {
 		Label:     label,
 		Priority:  priority,
 		Completed: completed,
+		Tags:      tags,
 	}
 	val, err := s.store.UpdateTodo(&item)
 	if err != nil {

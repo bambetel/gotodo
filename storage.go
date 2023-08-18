@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -36,7 +37,7 @@ func NewPostgresStorage() (*postgresStorage, error) {
 }
 
 func (s *postgresStorage) GetTodos() ([]*Todo, error) {
-	rows, err := s.db.Query("SELECT id, label, priority, completed, created, modified FROM todos")
+	rows, err := s.db.Query("SELECT id, label, priority, completed, created, modified, get_todo_tags(id) tags FROM todos")
 	defer rows.Close()
 	if err != nil {
 		return nil, err
@@ -46,7 +47,7 @@ func (s *postgresStorage) GetTodos() ([]*Todo, error) {
 	for rows.Next() {
 		i := new(Todo)
 
-		if err := rows.Scan(&i.Id, &i.Label, &i.Priority, &i.Completed, &i.Created, &i.Modified); err != nil {
+		if err := rows.Scan(&i.Id, &i.Label, &i.Priority, &i.Completed, &i.Created, &i.Modified, &i.Tags); err != nil {
 			return nil, fmt.Errorf("error getting todos: %v", err)
 		}
 		fmt.Println(i)
@@ -107,6 +108,20 @@ func (s *postgresStorage) UpdateTodo(item *Todo) (*Todo, error) {
 	err := s.db.QueryRow(sql, item.Label, item.Priority, item.Completed, item.Id).Scan(&modified)
 	if err != nil {
 		return nil, err
+	}
+	tags := strings.Split(item.Tags, ",")
+	ins := []string{}
+	for _, t := range tags {
+		ins = append(ins, fmt.Sprintf("(%d, get_tag_id('%s'))", item.Id, t))
+	}
+	if len(ins) > 0 {
+		sql = "INSERT INTO tagged (item_id, tag_id) VALUES " + strings.Join(ins, ", ") + " ON CONFLICT DO NOTHING"
+		fmt.Println("tag insertion query ", sql)
+		_, err := s.db.Query(sql)
+		// todo feedback which tags actually added, not critical
+		if err != nil {
+			fmt.Println("couldn't add some tags but nvm")
+		}
 	}
 	val := *item
 	val.Modified = modified

@@ -10,4 +10,5 @@ type Todo struct {
 	Created   time.Time `json:"created"`
 	Progress  int       `json:"progress"`
 	Completed bool      `json:"completed"`
+	Tags      string    `json:"tags"`
 }

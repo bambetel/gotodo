@@ -20,6 +20,6 @@ BEGIN
 		JOIN tagged ON todos.id=tagged.item_id
 		JOIN tags ON tags.id=tagged.tag_id
 		WHERE todos.id=$1 GROUP BY todos.id );
-	RETURN result;
+	RETURN coalesce ( result, '' );
 END;
 $$ LANGUAGE 'plpgsql';

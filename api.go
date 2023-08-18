@@ -24,15 +24,38 @@ func (s *APIServer) Run() {
 	router.Post("/todos", s.handleCreateTodo)
 	router.Delete("/todos", s.handleDeleteTodo)
 	router.Put("/todos/{id}", s.handleUpdateTodo)
+	router.Get("/todos/test", s.handleTest)
+	router.Get("/tags/{tag}", s.handleGetTodosByTag)
 	http.ListenAndServe(s.listenAddr, router)
 }
 
+func (s *APIServer) handleTest(w http.ResponseWriter, r *http.Request) {
+	WriteJSON(w, 200, "testowy ciąg znaków [12]")
+}
+
 func (s *APIServer) handleGetTodos(w http.ResponseWriter, r *http.Request) {
+	// TODO min fallback 0 max cap/fallback 10 (as in the db)
+	var (
+		minPriority = r.URL.Query().Get("minpriority")
+		maxPriority = r.URL.Query().Get("maxpriority")
+	)
+	fmt.Printf("url query priority range %v..%v\n", minPriority, maxPriority)
 	rows, err := s.store.GetTodos()
 	if err != nil {
 		w.Write([]byte("error!!!"))
 	} else {
-		json.NewEncoder(w).Encode(rows)
+		WriteJSON(w, http.StatusOK, rows)
+	}
+}
+
+func (s *APIServer) handleGetTodosByTag(w http.ResponseWriter, r *http.Request) {
+	tag := chi.URLParam(r, "tag")
+	fmt.Println("tag:", tag)
+	rows, err := s.store.GetTodosByTag(tag)
+	if err != nil {
+		w.Write([]byte("error!!!"))
+	} else {
+		WriteJSON(w, http.StatusOK, rows)
 	}
 }
 
@@ -106,3 +129,10 @@ func (s *APIServer) handleUpdateTodo(w http.ResponseWriter, r *http.Request) {
 // 	w.Write([]byte(fmt.Sprint(rows)))
 // 	return nil
 // }
+
+func WriteJSON(w http.ResponseWriter, status int, data any) error {
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(status)
+
+	return json.NewEncoder(w).Encode(data)
+}

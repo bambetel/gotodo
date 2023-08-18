@@ -55,29 +55,10 @@ func (s *postgresStorage) GetTodos() ([]*Todo, error) {
 	return todos, nil
 }
 
-// columns, err := rows.Columns()
-// 	if err != nil {
-// 		fmt.Println("cannot get column names")
-// 	} else {
-// 		fmt.Println("the column names are ", columns)
-// 	}
-//
-// 	columnTypes, err := rows.ColumnTypes()
-// 	if err != nil {
-// 		fmt.Println("cannot get column types")
-// 	} else {
-// 		fmt.Println("the column types are ", columnTypes)
-// 		for _, t := range columnTypes {
-// 			fmt.Println(t.DatabaseTypeName())
-// 		}
-// 	}
-
 func (s *postgresStorage) GetTodosByTag(tag string) ([]*Todo, error) {
-	// TODO
-	// OR by tag id?
-	// select * from todos where exists (select * from tagged where tagged.item_id=todos.id AND tagged.tag_id=3);
-	// select * from todos where exists (select * from tagged where tagged.item_id=todos.id AND tagged.tag_id=(select id from tags where label='go'));
-	sql := "SELECT * FROM todos WHERE EXISTS (SELECT * FROM tagged WHERE tagged.item_id=todos.id AND tagged.tag_id=(SELECT id FROM tags WHERE label=$1))"
+	sql := `SELECT id, label, priority, completed, created, modified
+	    FROM todos WHERE EXISTS (SELECT * FROM tagged
+		WHERE tagged.item_id=todos.id AND tagged.tag_id=(SELECT id FROM tags WHERE label=$1))`
 	rows, err := s.db.Query(sql, tag)
 	defer rows.Close()
 

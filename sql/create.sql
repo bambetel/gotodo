@@ -35,7 +35,8 @@ CREATE TABLE tags (
 
 CREATE TABLE tagged (
     item_id INT REFERENCES todos(id) ON DELETE CASCADE,
-    tag_id INT REFERENCES tags(id) ON DELETE CASCADE
+    tag_id INT REFERENCES tags(id) ON DELETE CASCADE,
+	UNIQUE(item_id, tag_id) ON CONFLICT DO NOTHING
 );
 
 CREATE OR REPLACE FUNCTION update_tags_check()

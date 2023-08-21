@@ -28,11 +28,16 @@
 - completion/progress - when progress=100, then completed
 - label
 - later: start/end time, duration
+- deleting tag
 
 # delete
 
 - a task
 - a tag
+
+# tagging 
+
+- hadling tag expiration if not used (?)
 
 # LATER
 

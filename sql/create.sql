@@ -3,13 +3,15 @@
 CREATE TABLE todos (
     id SERIAL PRIMARY KEY,
     label TEXT NOT NULL,
-    priority INT DEFAULT 3,
+    priority INT DEFAULT 3, -- todo limit range 1..10 asc/desc?
     modified TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     -- starting TIMESTAMPTZ,
     -- duration INTERVAL,
+	-- deadline (?)
     progress zero_to_hundred DEFAULT 0,
     completed BOOLEAN DEFAULT false,
+	-- completed_at (?)
 	ts_index TSVECTOR GENERATED ALWAYS AS (to_tsvector('english', label)) STORED
 );
 

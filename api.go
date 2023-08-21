@@ -35,12 +35,17 @@ func (s *APIServer) handleTest(w http.ResponseWriter, r *http.Request) {
 
 func (s *APIServer) handleGetTodos(w http.ResponseWriter, r *http.Request) {
 	// TODO min fallback 0 max cap/fallback 10 (as in the db)
+	q := r.URL.Query()
 	var (
-		minPriority = r.URL.Query().Get("minpriority")
-		maxPriority = r.URL.Query().Get("maxpriority")
+		minPriority = q.Get("minpriority")
+		maxPriority = q.Get("maxpriority")
+		orderBy     = q.Get("sort")
+		orderDir    = q.Get("dir")
+		completed   = q.Get("completed")
+		fulltext    = q.Get("q")
 	)
 	fmt.Printf("url query priority range %v..%v\n", minPriority, maxPriority)
-	rows, err := s.store.GetTodos()
+	rows, err := s.store.GetTodos(orderBy, orderDir, completed, fulltext)
 	if err != nil {
 		w.Write([]byte("error!!!"))
 	} else {
@@ -138,3 +143,8 @@ func WriteJSON(w http.ResponseWriter, status int, data any) error {
 
 	return json.NewEncoder(w).Encode(data)
 }
+
+// TODO ?
+// func ErrorJSON(w http.ResponseWriter, status int, data any) error {
+//    ... return JSON with error message
+// }

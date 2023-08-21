@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 )
 
@@ -10,12 +9,6 @@ func main() {
 	if err != nil {
 		log.Fatal("error creating pg connection!")
 	}
-
-	todos, err := ps.GetTodos()
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(todos)
 
 	server := NewAPIServer(":3000", ps)
 	server.Run()

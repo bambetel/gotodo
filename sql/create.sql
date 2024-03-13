@@ -18,7 +18,7 @@ CREATE TABLE todos (
 CREATE OR REPLACE FUNCTION update_modified_todos()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.modified = now();
+    NEW.modified_at = now();
     RETURN NEW;
 END;
 $$ language 'plpgsql';
@@ -33,7 +33,7 @@ CREATE TABLE tags (
 );
 
 CREATE TABLE tagged (
-    item_id INT REFERENCES todos(id) ON DELETE CASCADE,
-    tag_id INT REFERENCES tags(id) ON DELETE CASCADE,
+    item_id INT NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
+    tag_id INT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
 	UNIQUE(item_id, tag_id) 
 );

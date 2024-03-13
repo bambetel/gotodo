@@ -10,14 +10,6 @@ import (
 	_ "github.com/lib/pq"
 )
 
-type storage interface {
-	GetTodos() ([]*Todo, error)
-	GetTodosByTag(string) ([]*Todo, error)
-	CreateTodo(*Todo) (*Todo, error)
-	UpdateTodo(*Todo) error
-	DeleteTodo(int) error
-}
-
 type postgresStorage struct {
 	db *sql.DB
 }
@@ -131,19 +123,32 @@ func (s *postgresStorage) UpdateTodo(item *Todo) (*Todo, error) {
 	return &val, nil
 }
 
-// TODO what endpoint and request?
-func (s *postgresStorage) TagTodo(id int, tag string, add bool) error {
-	var sql string
-	if add {
-		// TODO new tag
-		sql = "INSERT INTO tagged (item_id, tag_id) VALUES ($1, (SELECT id FROM tags WHERE label=$2))"
-	} else {
-		sql = "DELETE FROM tagged WHERE item_id=$1 AND tag_id=(SELECT id FROM tags WHERE label=$2)"
-	}
-	_, err := s.db.Query(sql, id, tag)
+func (s *postgresStorage) GetTags() ([]string, error) {
+	sql := `SELECT string_agg(label, ',') FROM tags`
+	var labels string
+	err := s.db.QueryRow(sql).Scan(&labels)
 	if err != nil {
-		fmt.Println("error updating tags")
+		log.Printf("error getting tags: %v\n", err)
+		return nil, err
 	}
-	fmt.Println(sql)
-	return nil
+	return strings.Split(labels, ","), err
+}
+
+func (s *postgresStorage) CreateTag(label string) error {
+	sql := `INSERT INTO tags (label) VALUES ($1) RETURNING id`
+	return s.db.QueryRow(sql, label).Err()
+}
+
+func (s *postgresStorage) AddItemTag(item_id int, label string) error {
+	sql := `INSERT INTO tagged (item_id, tag_id) VALUES ($1, (SELECT id FROM tags WHERE label=$2)) ON CONFLICT DO NOTHING`
+	err := s.db.QueryRow(sql, item_id, label).Err()
+	log.Println(err)
+	return err
+}
+
+func (s *postgresStorage) RmItemTag(item_id int, label string) error {
+	sql := `DELETE FROM tagged WHERE item_id=$1 AND tag_id=(SELECT id FROM tags WHERE label=$2)`
+	err := s.db.QueryRow(sql, item_id, label).Err()
+	log.Println(err)
+	return err
 }

@@ -22,8 +22,7 @@ type postgresStorage struct {
 	db *sql.DB
 }
 
-func NewPostgresStorage() (*postgresStorage, error) {
-	connStr := `user=golang password=JWgrep321 dbname=todo sslmode=disable`
+func NewPostgresStorage(connStr string) (*postgresStorage, error) {
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, err
@@ -36,43 +35,22 @@ func NewPostgresStorage() (*postgresStorage, error) {
 	return &postgresStorage{db: db}, nil
 }
 
-func (s *postgresStorage) GetTodos(orderBy, orderDir, completed, fulltext string) ([]*Todo, error) {
-	params := []interface{}{}
-	sql := `SELECT id, label, priority, completed, created, modified, get_todo_tags(id) tags FROM todos`
-
-	if completed == "true" || completed == "false" || len(fulltext) > 2 {
-		sql += " WHERE "
-	}
-	if completed == "true" || completed == "false" {
-		sql += " completed=" + completed + " "
-	}
-	if len(fulltext) > 2 { // min text search length?
-		if completed == "true" || completed == "false" {
-			sql += " AND "
-		}
-		sql += ` label @@ to_tsquery($1) `
-		params = append(params, fulltext)
-	}
-	if len(orderBy) > 1 {
-		sql += ` ORDER BY ` + orderBy
-		if len(orderDir) >= 3 {
-			sql += " " + orderDir
-		}
-	}
+// TODO all args as strings?
+func (s *postgresStorage) GetTodos() ([]*Todo, error) {
+	sql := `SELECT id, label, priority FROM todos`
 	fmt.Println(sql)
-	fmt.Println(params)
 
-	rows, err := s.db.Query(sql, params...)
-	defer rows.Close()
+	rows, err := s.db.Query(sql)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	todos := []*Todo{}
 	for rows.Next() {
 		i := new(Todo)
 
-		if err := rows.Scan(&i.Id, &i.Label, &i.Priority, &i.Completed, &i.Created, &i.Modified, &i.Tags); err != nil {
+		if err := rows.Scan(&i.Id, &i.Label, &i.Priority); err != nil {
 			return nil, fmt.Errorf("error getting todos: %v", err)
 		}
 		fmt.Println(i)
@@ -86,11 +64,10 @@ func (s *postgresStorage) GetTodosByTag(tag string) ([]*Todo, error) {
 	    FROM todos WHERE EXISTS (SELECT * FROM tagged
 		WHERE tagged.item_id=todos.id AND tagged.tag_id=(SELECT id FROM tags WHERE label=$1))`
 	rows, err := s.db.Query(sql, tag)
-	defer rows.Close()
-
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	todos := []*Todo{}
 	for rows.Next() {

@@ -8,11 +8,15 @@ The DBMS used is Postgres and the database implements relational tagging with to
 
 ## Endpoints
 
-`/todos` - GET all todos
-`/todos?[query]` - filter todos - NIY
-`/todos/{id}` - GET, DELETE, update entry by id
-`/todos/{id}/tags` - POST add item tag
-`/todos/{id}/tags/{tag}` - DELETE item tag
-`/tags` - GET list of tags, POST
-`/tags/{tag}` - GET entries with a tag
+- `/todos` - GET all todos
+- `/todos?[query]` - filter todos by parameters:
+    - fulltext - full-text search
+    - prioritymin (int)
+    - prioritymax (int)
+    - completed (true/false)
+- `/todos/{id}` - GET, DELETE, update entry by id
+- `/todos/{id}/tags` - POST add item tag
+- `/todos/{id}/tags/{tag}` - DELETE item tag
+- `/tags` - GET list of tags, POST
+- `/tags/{tag}` - GET entries with a tag
 

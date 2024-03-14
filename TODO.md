@@ -2,9 +2,21 @@
 
 ## Query
 
-GO query builder
+- sorting?
+- pagination?
 
-Passing options - pattern?
+## Requests
+
+### Patch
+
+Update just one field:
+- item completed
+
+## Model
+
+Starting time, duration
+
+GO - Postgres 
 
 ## UI
 

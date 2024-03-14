@@ -19,58 +19,53 @@ func NewPostgresStorage(connStr string) (*postgresStorage, error) {
 	if err != nil {
 		return nil, err
 	}
-	pingErr := db.Ping()
-	if pingErr != nil {
-		log.Fatal(pingErr)
+	err = db.Ping()
+	if err != nil {
+		log.Fatalf("DB ping error! %v", err)
 	}
 	log.Println("Connected!")
 	return &postgresStorage{db: db}, nil
 }
 
 func (s *postgresStorage) GetTodos() ([]*Todo, error) {
-	q := `SELECT id, label, priority, created_at, modified_at,
+	q := `SELECT id, label, priority, completed, created_at, modified_at,
 			(SELECT coalesce(string_agg(label,','), '') FROM
 				tags JOIN tagged ON tag_id=tags.id AND item_id=todos.id) tags
 			FROM todos`
-	log.Println(q)
-
 	rows, err := s.db.Query(q)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	todos := []*Todo{}
-	for rows.Next() {
-		i := new(Todo)
-
-		if err := rows.Scan(&i.Id, &i.Label, &i.Priority, &i.Created, &i.Modified, &i.Tags); err != nil {
-			return nil, fmt.Errorf("error getting todos: %v", err)
-		}
-		log.Println(i)
-		todos = append(todos, i)
-	}
-	return todos, nil
+	todos, err := scanTodos(rows)
+	return todos, err
 }
 
 func (s *postgresStorage) GetTodosByTag(tag string) ([]*Todo, error) {
-	q := `SELECT id, label, priority, completed, created_at, modified_at, get_todo_tags(id) tags
-	    FROM todos WHERE EXISTS (SELECT * FROM tagged
-		WHERE tagged.item_id=todos.id AND tagged.tag_id=(SELECT id FROM tags WHERE label=$1))`
+	q := `SELECT id, label, priority, completed, created_at, modified_at, 
+			(SELECT coalesce(string_agg(label,','), '') FROM
+				tags JOIN tagged ON tag_id=tags.id AND item_id=todos.id) tags
+			FROM todos WHERE EXISTS (SELECT * FROM tagged
+			WHERE tagged.item_id=todos.id AND tagged.tag_id=(SELECT id FROM tags WHERE label=$1))`
 	rows, err := s.db.Query(q, tag)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	todos := []*Todo{}
+	todos, err := scanTodos(rows)
+	return todos, nil
+}
+
+func scanTodos(rows *sql.Rows) ([]*Todo, error) {
+	todos := make([]*Todo, 0, 8)
 	for rows.Next() {
 		i := new(Todo)
 
 		if err := rows.Scan(&i.Id, &i.Label, &i.Priority, &i.Completed, &i.Created, &i.Modified, &i.Tags); err != nil {
-			return nil, fmt.Errorf("error getting todos: %v", err)
+			return nil, fmt.Errorf("error scanning todos: %s", err.Error())
 		}
-		log.Println(i)
 		todos = append(todos, i)
 	}
 	return todos, nil
@@ -87,17 +82,20 @@ func (s *postgresStorage) DeleteTodo(id int) error {
 
 func (s *postgresStorage) CreateTodo(item *Todo) (*Todo, error) {
 	var id *int
-	q := "INSERT INTO todos (label, priority) VALUES ($1, $2) RETURNING id"
-	err := s.db.QueryRow(q, item.Label, item.Priority).Scan(&id)
+	var modified, created time.Time
+	q := "INSERT INTO todos (label, priority) VALUES ($1, $2) RETURNING id, modified_at, created_at"
+	err := s.db.QueryRow(q, item.Label, item.Priority).Scan(&id, &modified, &created)
 	if err != nil {
 		return nil, err
 	}
 	val := *item
+	val.Modified, val.Created = modified, created
 	val.Id = *id
 	log.Printf("Created todo id=%d: %+v", id, val)
 	return &val, nil
 }
 
+// TODO: no tag handling?
 func (s *postgresStorage) UpdateTodo(item *Todo) (*Todo, error) {
 	var modified, created time.Time
 	q := "UPDATE todos SET label=$1, priority=$2, completed=$3 WHERE id=$4 RETURNING modified_at, created_at"
@@ -121,9 +119,7 @@ func (s *postgresStorage) UpdateTodo(item *Todo) (*Todo, error) {
 	// 	}
 	// }
 	val := *item
-	val.Modified = modified
-	val.Created = created
-	log.Println("Modified todo:", val)
+	val.Modified, val.Created = modified, created
 	return &val, nil
 }
 

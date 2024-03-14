@@ -61,7 +61,7 @@ func (s *APIServer) handleGetTodosByTag(w http.ResponseWriter, r *http.Request) 
 	fmt.Println("tag:", tag)
 	rows, err := s.store.GetTodosByTag(tag)
 	if err != nil {
-		w.Write([]byte("error!!!"))
+		w.Write([]byte("error!!!" + err.Error()))
 	} else {
 		WriteJSON(w, http.StatusOK, rows)
 	}
@@ -163,7 +163,7 @@ func (s *APIServer) handleUpdateTodo(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Write([]byte("Error updating item"))
 	} else {
-		w.Write([]byte(fmt.Sprint("Item updated %+v", val)))
+		w.Write([]byte(fmt.Sprintf("Item updated %+v", val)))
 	}
 }
 

@@ -21,22 +21,32 @@ func NewAPIServer(listenAddr string, store *postgresStorage) *APIServer {
 
 func (s *APIServer) Run() {
 	router := chi.NewRouter()
-	router.Get("/todos", s.handleGetTodos)
-	router.Post("/todos", s.handleCreateTodo)
+	router.Get("/todos", handleError(s.handleGetTodos))
+	router.Post("/todos", handleError(s.handleCreateTodo))
 	router.Route("/todos/{id}", func(r chi.Router) {
 		r.Use(TodoCtx)
-		r.Delete("/", s.handleDeleteTodo)
-		r.Post("/tags", s.handleAddItemTag)
-		r.Delete("/tags/{label}", s.handleRmItemTag)
-		r.Put("/", s.handleUpdateTodo)
+		r.Delete("/", handleError(s.handleDeleteTodo))
+		r.Post("/tags", handleError(s.handleAddItemTag))
+		r.Delete("/tags/{label}", handleError(s.handleRmItemTag))
+		r.Put("/", handleError(s.handleUpdateTodo))
 	})
-	router.Get("/tags/{tag}", s.handleGetTodosByTag)
-	router.Get("/tags", s.handleGetTags)
-	router.Post("/tags", s.handleCreateTag)
+	router.Get("/tags/{tag}", handleError(s.handleGetTodosByTag))
+	router.Get("/tags", handleError(s.handleGetTags))
+	router.Post("/tags", handleError(s.handleCreateTag))
 	http.ListenAndServe(s.listenAddr, router)
 }
 
-func (s *APIServer) handleGetTodos(w http.ResponseWriter, r *http.Request) {
+type APIFunc func(w http.ResponseWriter, r *http.Request) error
+
+func handleError(f APIFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := f(w, r); err != nil {
+			WriteJSON(w, http.StatusBadRequest, fmt.Sprintf("API error: %v/%s\n", err, err.Error()))
+		}
+	}
+}
+
+func (s *APIServer) handleGetTodos(w http.ResponseWriter, r *http.Request) error {
 	// TODO min fallback 0 max cap/fallback 10 (as in the db)
 	q := r.URL.Query()
 	var (
@@ -44,30 +54,28 @@ func (s *APIServer) handleGetTodos(w http.ResponseWriter, r *http.Request) {
 		maxPriority = q.Get("maxpriority")
 		// orderBy     = q.Get("sort")
 		// orderDir    = q.Get("dir")
-		// completed   = q.Get("completed")
-		// fulltext    = q.Get("q")
+		completed = q.Get("completed")
+		fulltext  = q.Get("q")
 	)
-	fmt.Printf("url query priority range %v..%v\n", minPriority, maxPriority)
+	fmt.Printf("url query priority range %v..%v, %v, %v\n", minPriority, maxPriority, completed, fulltext)
 	rows, err := s.store.GetTodos()
 	if err != nil {
-		w.Write([]byte("error!!!" + err.Error()))
-	} else {
-		WriteJSON(w, http.StatusOK, rows)
+		return err
 	}
+	return WriteJSON(w, http.StatusOK, rows)
 }
 
-func (s *APIServer) handleGetTodosByTag(w http.ResponseWriter, r *http.Request) {
+func (s *APIServer) handleGetTodosByTag(w http.ResponseWriter, r *http.Request) error {
 	tag := chi.URLParam(r, "tag")
 	fmt.Println("tag:", tag)
 	rows, err := s.store.GetTodosByTag(tag)
 	if err != nil {
-		w.Write([]byte("error!!!" + err.Error()))
-	} else {
-		WriteJSON(w, http.StatusOK, rows)
+		return err
 	}
+	return WriteJSON(w, http.StatusOK, rows)
 }
 
-func (s *APIServer) handleCreateTodo(w http.ResponseWriter, r *http.Request) {
+func (s *APIServer) handleCreateTodo(w http.ResponseWriter, r *http.Request) error {
 	var (
 		label string = r.FormValue("label")
 	)
@@ -79,18 +87,14 @@ func (s *APIServer) handleCreateTodo(w http.ResponseWriter, r *http.Request) {
 	}
 	item, err := s.store.CreateTodo(&ins)
 	if err != nil {
-		w.Write([]byte("error creating todo!"))
-	} else {
-		json.NewEncoder(w).Encode(item)
+		return err
 	}
+	return WriteJSON(w, http.StatusCreated, item)
 }
 
-func (s *APIServer) handleCreateTag(w http.ResponseWriter, r *http.Request) {
+func (s *APIServer) handleCreateTag(w http.ResponseWriter, r *http.Request) error {
 	label := r.FormValue("label")
-	if err := s.store.CreateTag(label); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(fmt.Sprintf("Error creating tag: %v\n", err.Error())))
-	}
+	return s.store.CreateTag(label)
 }
 
 func TodoCtx(next http.Handler) http.Handler {
@@ -106,46 +110,37 @@ func TodoCtx(next http.Handler) http.Handler {
 	})
 }
 
-func (s *APIServer) handleAddItemTag(w http.ResponseWriter, r *http.Request) {
+func (s *APIServer) handleAddItemTag(w http.ResponseWriter, r *http.Request) error {
 	id, _ := r.Context().Value("id").(int)
 	label := r.FormValue("label")
-	if err := s.store.AddItemTag(id, label); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-	}
+	return s.store.AddItemTag(id, label)
 }
 
-func (s *APIServer) handleRmItemTag(w http.ResponseWriter, r *http.Request) {
+func (s *APIServer) handleRmItemTag(w http.ResponseWriter, r *http.Request) error {
 	id, _ := r.Context().Value("id").(int)
 	label := chi.URLParam(r, "label")
-	if err := s.store.RmItemTag(id, label); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-	}
+	return s.store.RmItemTag(id, label)
 }
 
-func (s *APIServer) handleGetTags(w http.ResponseWriter, r *http.Request) {
+func (s *APIServer) handleGetTags(w http.ResponseWriter, r *http.Request) error {
 	tags, err := s.store.GetTags()
 	if err != nil {
-		w.Write([]byte("error getting tag list"))
+		return err
 	}
-	json.NewEncoder(w).Encode(tags)
+	return json.NewEncoder(w).Encode(tags)
 }
 
-func (s *APIServer) handleDeleteTodo(w http.ResponseWriter, r *http.Request) {
+func (s *APIServer) handleDeleteTodo(w http.ResponseWriter, r *http.Request) error {
 	id, _ := r.Context().Value("id").(int)
-	err := s.store.DeleteTodo(id)
-	if err != nil {
-		w.Write([]byte("Error deleting item"))
-	} else {
-		w.Write([]byte("Item deleted."))
-	}
+	return s.store.DeleteTodo(id)
 }
 
-func (s *APIServer) handleUpdateTodo(w http.ResponseWriter, r *http.Request) {
+func (s *APIServer) handleUpdateTodo(w http.ResponseWriter, r *http.Request) error {
 	id, _ := r.Context().Value("id").(int)
 	priority, err := strconv.Atoi(r.FormValue("priority"))
 
 	if err != nil {
-		w.Write([]byte("Cannot parse priority from form data!"))
+		return err
 	}
 	label := r.FormValue("label")
 	completed := r.FormValue("completed") == "true" // bool
@@ -159,12 +154,8 @@ func (s *APIServer) handleUpdateTodo(w http.ResponseWriter, r *http.Request) {
 		Completed: completed,
 		Tags:      tags,
 	}
-	val, err := s.store.UpdateTodo(&item)
-	if err != nil {
-		w.Write([]byte("Error updating item"))
-	} else {
-		w.Write([]byte(fmt.Sprintf("Item updated %+v", val)))
-	}
+	_, err = s.store.UpdateTodo(&item)
+	return err
 }
 
 func WriteJSON(w http.ResponseWriter, status int, data any) error {
@@ -173,8 +164,3 @@ func WriteJSON(w http.ResponseWriter, status int, data any) error {
 
 	return json.NewEncoder(w).Encode(data)
 }
-
-// TODO ?
-// func ErrorJSON(w http.ResponseWriter, status int, data any) error {
-//    ... return JSON with error message
-// }

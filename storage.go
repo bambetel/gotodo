@@ -42,6 +42,26 @@ func (s *postgresStorage) GetTodos() ([]*Todo, error) {
 	return todos, err
 }
 
+func (s *postgresStorage) QueryTodos(tq *TodoQuery) ([]*Todo, error) {
+	cond, args := tq.SQL()
+	q := `SELECT id, label, priority, completed, created_at, modified_at,
+			(SELECT coalesce(string_agg(label,','), '') FROM
+				tags JOIN tagged ON tag_id=tags.id AND item_id=todos.id) tags
+			FROM todos`
+	if len(cond) > 1 {
+		q = q + " WHERE " + cond
+	}
+	log.Println(q)
+	rows, err := s.db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	todos, err := scanTodos(rows)
+	return todos, err
+}
+
 func (s *postgresStorage) GetTodosByTag(tag string) ([]*Todo, error) {
 	q := `SELECT id, label, priority, completed, created_at, modified_at, 
 			(SELECT coalesce(string_agg(label,','), '') FROM

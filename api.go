@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -37,32 +38,72 @@ func (s *APIServer) Run() {
 }
 
 type APIFunc func(w http.ResponseWriter, r *http.Request) error
+type APIError struct {
+	Text   string
+	Status int // necessary?
+}
 
 func handleError(f APIFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := f(w, r); err != nil {
-			WriteJSON(w, http.StatusBadRequest, fmt.Sprintf("API error: %v/%s\n", err, err.Error()))
+			WriteJSON(w, http.StatusBadRequest, APIError{fmt.Sprintf("API error: %v/%s\n", err, err.Error()), http.StatusBadRequest})
 		}
 	}
 }
 
 func (s *APIServer) handleGetTodos(w http.ResponseWriter, r *http.Request) error {
 	// TODO min fallback 0 max cap/fallback 10 (as in the db)
-	q := r.URL.Query()
-	var (
-		minPriority = q.Get("minpriority")
-		maxPriority = q.Get("maxpriority")
-		// orderBy     = q.Get("sort")
-		// orderDir    = q.Get("dir")
-		completed = q.Get("completed")
-		fulltext  = q.Get("q")
-	)
-	fmt.Printf("url query priority range %v..%v, %v, %v\n", minPriority, maxPriority, completed, fulltext)
-	rows, err := s.store.GetTodos()
+	tq, err := queryFromRequest(r)
+	q, _ := tq.SQL()
+	log.Printf("Created query:\n%v\n", q)
+	rows, err := s.store.QueryTodos(tq)
 	if err != nil {
 		return err
 	}
 	return WriteJSON(w, http.StatusOK, rows)
+}
+
+func queryFromRequest(r *http.Request) (*TodoQuery, error) {
+	q := r.URL.Query()
+	opt := make([]TodoQueryOption, 0)
+	if q.Has("completed") {
+		completed := false
+		switch val := q.Get("completed"); val {
+		case "true":
+			completed = true
+		case "false":
+		default:
+			return nil, fmt.Errorf("Invalid bool format: %s\n", val)
+		}
+		opt = append(opt, WithCompleted(completed))
+	}
+	// TODO: validation here, but could be made in the query struct
+	//       maybe custom validation for tagged fields?
+	//       - int range etc.
+	if q.Has("prioritymin") {
+		prioritymin, err := strconv.Atoi(q.Get("prioritymin"))
+		if err != nil {
+			return nil, fmt.Errorf("Invalid int format: %s", q.Get("prioritymin"))
+		}
+		opt = append(opt, WithPriorityMin(prioritymin))
+	}
+	if q.Has("prioritymax") {
+		prioritymax, err := strconv.Atoi(q.Get("prioritymax"))
+		if err != nil {
+			return nil, fmt.Errorf("Invalid int format: %s", q.Get("prioritymax"))
+		}
+		opt = append(opt, WithPriorityMax(prioritymax))
+	}
+	if q.Has("fulltext") {
+		val := q.Get("fulltext")
+		if len(val) < 3 {
+			return nil, fmt.Errorf("Query too short, at least 3 characters required.")
+		}
+		opt = append(opt, WithFulltext(val))
+	}
+
+	tq := NewTodoQuery(opt)
+	return &tq, nil
 }
 
 func (s *APIServer) handleGetTodosByTag(w http.ResponseWriter, r *http.Request) error {

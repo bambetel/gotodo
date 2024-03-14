@@ -1,18 +1,10 @@
 # GO TODO TODO (sic!)
 
-## .env
-
-Use .env file for DB config etc.
-
 ## Query
 
 GO query builder
 
-GO functional options for query?
-
-## DB
-
-Restrict stored procedures
+Passing options - pattern?
 
 ## UI
 

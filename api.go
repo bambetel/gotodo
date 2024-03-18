@@ -30,6 +30,7 @@ func (s *APIServer) Run() {
 		r.Post("/tags", handleError(s.handleAddItemTag))
 		r.Delete("/tags/{label}", handleError(s.handleRmItemTag))
 		r.Put("/", handleError(s.handleUpdateTodo))
+		r.Patch("/", handleError(s.handlePatchTodo))
 	})
 	router.Get("/tags/{tag}", handleError(s.handleGetTodosByTag))
 	router.Get("/tags", handleError(s.handleGetTags))
@@ -196,6 +197,20 @@ func (s *APIServer) handleUpdateTodo(w http.ResponseWriter, r *http.Request) err
 		Tags:      tags,
 	}
 	_, err = s.store.UpdateTodo(&item)
+	return err
+}
+
+func (s *APIServer) handlePatchTodo(w http.ResponseWriter, r *http.Request) error {
+	id, _ := r.Context().Value("id").(int)
+
+	var item = Todo{
+		Id:        id,
+		Completed: chi.URLParam(r, "completed") != "",
+	}
+
+	patchOptions := PatchOptions{Completed: true}
+	err := s.store.PatchTodo(&item, patchOptions)
+
 	return err
 }
 

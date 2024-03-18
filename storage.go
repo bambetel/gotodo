@@ -143,6 +143,20 @@ func (s *postgresStorage) UpdateTodo(item *Todo) (*Todo, error) {
 	return &val, nil
 }
 
+type PatchOptions struct {
+	Completed bool
+}
+
+func (s *postgresStorage) PatchTodo(item *Todo, opts PatchOptions) error {
+	// TODO: other fields
+	if !opts.Completed {
+		return nil
+	}
+	q := "UPDATE todos SET completed=$2 WHERE id=$1"
+	err := s.db.QueryRow(q, item.Id, item.Completed).Err()
+	return err
+}
+
 func (s *postgresStorage) GetTags() ([]string, error) {
 	q := `SELECT string_agg(label, ',') FROM tags`
 	var labels sql.NullString
